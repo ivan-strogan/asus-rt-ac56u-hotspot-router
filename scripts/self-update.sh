@@ -18,7 +18,7 @@ if [ ! -x "$GIT" ]; then
     exit 0
 fi
 
-CURRENT_COMMIT=$(cat /jffs/current-commit 2>/dev/null || echo "unknown")
+CURRENT_COMMIT=$(cat /jffs/current-commit 2>/dev/null || echo "none")
 log "self-update" "current commit: $CURRENT_COMMIT"
 
 rm -rf "$TMP_DIR"
@@ -40,27 +40,15 @@ if [ "$CURRENT_COMMIT" = "$NEW_COMMIT" ]; then
     exit 0
 fi
 
-# List changed files
-log "self-update" "comparing scripts"
-for f in "$TMP_DIR/scripts/"*; do
-    name=$(basename "$f")
-    current="$SCRIPTS_DIR/$name"
-    if [ ! -f "$current" ]; then
-        log "self-update" "  new file: $name"
-    elif ! cmp -s "$f" "$current"; then
-        log "self-update" "  modified: $name"
-    else
-        log "self-update" "  unchanged: $name"
-    fi
-done
+log "self-update" "new commit detected — deploying $CURRENT_COMMIT -> $NEW_COMMIT"
 
 # Backup current scripts
 log "self-update" "backing up current scripts to $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"
 cp -v "$SCRIPTS_DIR"/* "$BACKUP_DIR/"
 
-# Deploy new scripts
-log "self-update" "deploying new scripts"
+# Deploy all scripts from repo
+log "self-update" "deploying scripts"
 for f in "$TMP_DIR/scripts/"*; do
     name=$(basename "$f")
     cp -v "$f" "$SCRIPTS_DIR/$name"
