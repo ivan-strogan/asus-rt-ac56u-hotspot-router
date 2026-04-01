@@ -4,6 +4,7 @@
 # Requires SSH access to the router at 192.168.1.1
 
 ROUTER="admin@192.168.1.1"
+SCP="scp -O"  # -O forces legacy SCP protocol (router doesn't support SFTP)
 
 echo "=== Deploying to $ROUTER ==="
 
@@ -12,14 +13,14 @@ ssh $ROUTER "mkdir -p /jffs/scripts /jffs/previous"
 
 # Upload all scripts
 echo "--- Uploading scripts ---"
-scp scripts/log.sh            $ROUTER:/jffs/scripts/log.sh
-scp scripts/init-start        $ROUTER:/jffs/scripts/init-start
-scp scripts/firewall-start    $ROUTER:/jffs/scripts/firewall-start
-scp scripts/services-start    $ROUTER:/jffs/scripts/services-start
-scp scripts/wan-watchdog.sh   $ROUTER:/jffs/scripts/wan-watchdog.sh
-scp scripts/self-update.sh    $ROUTER:/jffs/scripts/self-update.sh
-scp scripts/dnsmasq-dhcp.conf $ROUTER:/jffs/dnsmasq-dhcp.conf
-scp scripts/udhcpc.script     $ROUTER:/jffs/udhcpc.script
+$SCP scripts/log.sh            $ROUTER:/jffs/scripts/log.sh
+$SCP scripts/init-start        $ROUTER:/jffs/scripts/init-start
+$SCP scripts/firewall-start    $ROUTER:/jffs/scripts/firewall-start
+$SCP scripts/services-start    $ROUTER:/jffs/scripts/services-start
+$SCP scripts/wan-watchdog.sh   $ROUTER:/jffs/scripts/wan-watchdog.sh
+$SCP scripts/self-update.sh    $ROUTER:/jffs/scripts/self-update.sh
+$SCP scripts/dnsmasq-dhcp.conf $ROUTER:/jffs/dnsmasq-dhcp.conf
+$SCP scripts/udhcpc.script     $ROUTER:/jffs/udhcpc.script
 
 # Set execute permissions
 echo "--- Setting permissions ---"
