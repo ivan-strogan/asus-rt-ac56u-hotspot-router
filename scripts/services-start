@@ -29,12 +29,8 @@ log "services-start" "enabling IP forwarding"
 echo 1 > /proc/sys/net/ipv4/ip_forward
 cat /proc/sys/net/ipv4/ip_forward
 
-log "services-start" "removing bad firmware PREROUTING rules"
-iptables -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to 192.168.1.1:18018 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to 192.168.1.1:18017 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp -d 10.0.0.1 --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp -d 192.168.1.1 --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
+log "services-start" "flushing PREROUTING rules"
+iptables -t nat -F PREROUTING
 
 log "services-start" "setting up NAT rules"
 iptables -t nat -D POSTROUTING -o eth1 -j MASQUERADE 2>/dev/null
@@ -57,7 +53,7 @@ log "services-start" "starting dnsmasq"
 dnsmasq --log-async --no-resolv --server=8.8.8.8 --server=8.8.4.4 \
   --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 --interface=lo \
   --bind-interfaces --port=53
-log "services-start" "dnsmasq pid: $(pgrep dnsmasq)"
+log "services-start" "dnsmasq pid: $(pidof dnsmasq)"
 
 log "services-start" "registering watchdog cron job"
 touch /tmp/setup_done

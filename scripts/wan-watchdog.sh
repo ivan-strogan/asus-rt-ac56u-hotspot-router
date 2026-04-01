@@ -23,19 +23,13 @@ if [ -z "$ETH1_IP" ]; then
     fi
 fi
 
-# (b) Remove bad PREROUTING rules - log if any were found
+# (b) Flush PREROUTING - log if anything was there
 PREROUTING_BEFORE=$(iptables -t nat -L PREROUTING -n)
-iptables -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to 192.168.1.1:18018 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to 192.168.1.1:18017 2>/dev/null
-[ -n "$ETH1_IP" ] && iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp -d 10.0.0.1 --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp -d 192.168.1.1 --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
+iptables -t nat -F PREROUTING
 PREROUTING_AFTER=$(iptables -t nat -L PREROUTING -n)
 if [ "$PREROUTING_BEFORE" != "$PREROUTING_AFTER" ]; then
-    log "watchdog" "removed bad PREROUTING rules - before:"
+    log "watchdog" "flushed PREROUTING rules - before:"
     echo "$PREROUTING_BEFORE"
-    log "watchdog" "PREROUTING after cleanup:"
-    echo "$PREROUTING_AFTER"
 fi
 
 # (c) MASQUERADE missing
@@ -52,12 +46,12 @@ if [ -z "$MASQ" ]; then
 fi
 
 # (d) dnsmasq not running
-if ! pgrep dnsmasq > /dev/null; then
+if ! pidof dnsmasq > /dev/null; then
     log "watchdog" "dnsmasq not running - restarting"
     dnsmasq --log-async --no-resolv --server=8.8.8.8 --server=8.8.4.4 \
       --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 --interface=lo \
       --bind-interfaces --port=53
-    log "watchdog" "dnsmasq restarted with pid: $(pgrep dnsmasq)"
+    log "watchdog" "dnsmasq restarted with pid: $(pidof dnsmasq)"
 fi
 
 rm -f "$LOCK"

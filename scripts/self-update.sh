@@ -6,15 +6,16 @@ TMP_DIR="/tmp/router-update"
 SCRIPTS_DIR="/jffs/scripts"
 BACKUP_DIR="/jffs/previous"
 
-export PATH="/opt/bin:/opt/sbin:$PATH"
-export LD_LIBRARY_PATH="/opt/lib:$LD_LIBRARY_PATH"
-
-GIT="/opt/bin/git"
+# Add Entware bin to PATH but do NOT export LD_LIBRARY_PATH globally —
+# it causes Entware's glibc to corrupt the busybox environment.
+# LD_LIBRARY_PATH is passed only to git via env wrapper below.
+export PATH="/opt/bin:/opt/libexec/git-core:/opt/sbin:$PATH"
+GIT="env LD_LIBRARY_PATH=/opt/lib /opt/bin/git"
 
 log "self-update" "--- starting update check ---"
 
-if [ ! -x "$GIT" ]; then
-    log "self-update" "ERROR: git not found at $GIT"
+if [ ! -x "/opt/bin/git" ]; then
+    log "self-update" "ERROR: git not found at /opt/bin/git"
     exit 0
 fi
 
@@ -40,14 +41,12 @@ if [ "$CURRENT_COMMIT" = "$NEW_COMMIT" ]; then
     exit 0
 fi
 
-log "self-update" "new commit detected — deploying $CURRENT_COMMIT -> $NEW_COMMIT"
+log "self-update" "new commit detected - deploying $CURRENT_COMMIT -> $NEW_COMMIT"
 
-# Backup current scripts
 log "self-update" "backing up current scripts to $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"
 cp -v "$SCRIPTS_DIR"/* "$BACKUP_DIR/"
 
-# Deploy all scripts from repo
 log "self-update" "deploying scripts"
 for f in "$TMP_DIR/scripts/"*; do
     name=$(basename "$f")
