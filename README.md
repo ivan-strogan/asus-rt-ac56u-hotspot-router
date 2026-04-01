@@ -118,12 +118,18 @@ Host 192.168.1.1
 
 ### Step 5 - Verify
 
-After `deploy.sh` completes, the log output is printed automatically. You can also check manually:
+After `deploy.sh` completes, the log output is printed automatically. You can also check the log manually:
 
 ```bash
 ssh admin@192.168.1.1
 cat /jffs/logs/router.log
 ```
+
+---
+
+## Health Check
+
+Run these commands over SSH to confirm everything is working correctly:
 
 ```bash
 # eth1 should NOT be in the bridge
