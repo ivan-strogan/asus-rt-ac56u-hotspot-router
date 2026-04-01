@@ -1,0 +1,81 @@
+#!/bin/sh
+. /jffs/scripts/log.sh
+
+log "services-start" "=== boot sequence started ==="
+
+sleep 30
+
+log "services-start" "removing eth1 from bridge"
+brctl delif br0 eth1 2>/dev/null
+sleep 3
+
+# Wait indefinitely for repeater mode to connect to iPhone and get a DHCP lease.
+# Logs only when waiting starts and when connection is established.
+log "services-start" "waiting for iPhone hotspot..."
+while true; do
+    ETH1_IP=$(ifconfig eth1 2>/dev/null | grep 'inet addr' | awk '{print $2}' | cut -d: -f2)
+    [ -n "$ETH1_IP" ] && break
+    udhcpc -i eth1 -q -s /jffs/udhcpc.script 2>/dev/null
+    sleep 5
+done
+
+log "services-start" "iPhone hotspot connected - eth1 IP: $ETH1_IP"
+
+log "services-start" "setting br0 to 192.168.1.1"
+ifconfig br0 192.168.1.1 netmask 255.255.255.0 up
+sleep 1
+
+log "services-start" "enabling IP forwarding"
+echo 1 > /proc/sys/net/ipv4/ip_forward
+cat /proc/sys/net/ipv4/ip_forward
+
+log "services-start" "removing bad firmware PREROUTING rules"
+iptables -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to 192.168.1.1:18018 2>/dev/null
+iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to 192.168.1.1:18017 2>/dev/null
+iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
+iptables -t nat -D PREROUTING -p tcp -d 10.0.0.1 --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
+iptables -t nat -D PREROUTING -p tcp -d 192.168.1.1 --dport 80 -j DNAT --to ${ETH1_IP}:80 2>/dev/null
+
+log "services-start" "setting up NAT rules"
+iptables -t nat -D POSTROUTING -o eth1 -j MASQUERADE 2>/dev/null
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+iptables -D FORWARD -i br0 -o eth1 -j ACCEPT 2>/dev/null
+iptables -D FORWARD -i eth1 -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null
+iptables -A FORWARD -i br0 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth1 -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+log "services-start" "current POSTROUTING rules:"
+iptables -t nat -L POSTROUTING -n -v
+log "services-start" "current PREROUTING rules:"
+iptables -t nat -L PREROUTING -n -v
+
+log "services-start" "stopping existing dnsmasq"
+killall dnsmasq 2>/dev/null
+sleep 2
+
+log "services-start" "starting dnsmasq"
+dnsmasq --log-async --no-resolv --server=8.8.8.8 --server=8.8.4.4 \
+  --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 --interface=lo \
+  --bind-interfaces --port=53
+log "services-start" "dnsmasq pid: $(pgrep dnsmasq)"
+
+log "services-start" "registering watchdog cron job"
+touch /tmp/setup_done
+cru a wan-watchdog "* * * * * /jffs/scripts/wan-watchdog.sh"
+cru l
+
+log "services-start" "=== setup complete ==="
+
+# Run self-update on first boot (no current-commit file) or if last check was over 7 days ago
+LAST_CHECK=$(cat /jffs/last-update-check 2>/dev/null || echo 0)
+NOW=$(date +%s)
+WEEK=604800
+
+if [ ! -f /jffs/current-commit ] || [ $((NOW - LAST_CHECK)) -gt $WEEK ]; then
+    log "services-start" "running self-update check (first boot or 7+ days since last check)"
+    echo "$NOW" > /jffs/last-update-check
+    /jffs/scripts/self-update.sh &
+else
+    DAYS=$(( (NOW - LAST_CHECK) / 86400 ))
+    log "services-start" "skipping self-update - last check was $DAYS days ago"
+fi

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs early on boot - mounts Entware from JFFS into /opt (via /tmp/opt)
+mkdir -p /tmp/opt
+mount --bind /jffs/entware /tmp/opt

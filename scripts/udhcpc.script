@@ -1,0 +1,5 @@
+#!/bin/sh
+# Called by udhcpc when a DHCP lease is obtained on eth1.
+# The default udhcpc handler doesn't properly apply IP/route when eth1 is not in the bridge.
+ifconfig $interface $ip netmask $subnet
+route add default gw $router dev $interface

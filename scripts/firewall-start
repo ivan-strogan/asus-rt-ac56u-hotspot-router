@@ -1,0 +1,3 @@
+#!/bin/sh
+# Keep SSH accessible on the LAN bridge after firewall rules are applied
+iptables -I INPUT -i br0 -p tcp --dport 22 -j ACCEPT
