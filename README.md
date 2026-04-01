@@ -98,21 +98,31 @@ cd asus-rt-ac56u-hotspot-router
 bash deploy.sh
 ```
 
-`deploy.sh` will SSH into the router and install:
-- `/jffs/scripts/services-start` - runs on boot, sets up NAT and networking
-- `/jffs/scripts/wan-watchdog.sh` - runs every minute, fixes any firmware interference
-- `/jffs/dnsmasq-dhcp.conf` - DHCP and DNS config for LAN devices
+`deploy.sh` will:
+1. Upload all scripts to `/jffs/scripts/` on the router
+2. Set correct permissions
+3. Reboot the router
+4. Wait 3 minutes then automatically print `/jffs/logs/router.log` so you can confirm everything came up correctly
 
-It also activates the watchdog immediately without requiring a reboot.
+**First time only** - set up SSH key auth so deploy.sh runs without password prompts:
+```bash
+ssh-copy-id admin@192.168.1.1
+```
 
-You will be prompted for the router SSH password during deployment.
+Then add this to `~/.ssh/config` (required for older dropbear compatibility):
+```
+Host 192.168.1.1
+    PubkeyAcceptedAlgorithms +ssh-rsa
+    HostkeyAlgorithms +ssh-rsa
+```
 
 ### Step 5 - Verify
 
-Reboot the router and wait ~2 minutes, then run these checks over SSH:
+After `deploy.sh` completes, the log output is printed automatically. You can also check manually:
 
 ```bash
 ssh admin@192.168.1.1
+cat /jffs/logs/router.log
 ```
 
 ```bash

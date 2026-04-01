@@ -37,9 +37,13 @@ ssh $ROUTER "cru d wan-watchdog 2>/dev/null; \
              cru a wan-watchdog '* * * * * /jffs/scripts/wan-watchdog.sh'; \
              touch /tmp/setup_done"
 
+echo "--- Rebooting router ---"
+ssh $ROUTER "reboot"
+
 echo ""
-echo "=== Deploy complete ==="
+echo "Waiting 3 minutes for router to boot..."
+sleep 180
+
 echo ""
-echo "Verify:"
-echo "  cru l              - watchdog cron job present"
-echo "  ls /jffs/scripts/  - all scripts uploaded"
+echo "=== Post-boot verification ==="
+ssh $ROUTER "cat /jffs/logs/router.log"
