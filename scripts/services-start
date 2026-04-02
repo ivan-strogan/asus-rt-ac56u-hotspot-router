@@ -21,9 +21,10 @@ done
 
 log "services-start" "iPhone hotspot connected - eth1 IP: $ETH1_IP"
 
-log "services-start" "syncing time via NTP"
-ntpd -d -n -q -p pool.ntp.org
-log "services-start" "current time: $(date)"
+# Firmware network init may overwrite /etc/resolv.conf after init-start runs.
+# Re-apply here so NTP, opkg, and git can resolve hostnames reliably.
+rm -f /etc/resolv.conf
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
 log "services-start" "setting br0 to 192.168.1.1"
 ifconfig br0 192.168.1.1 netmask 255.255.255.0 up
@@ -58,6 +59,10 @@ dnsmasq --log-async --no-resolv --server=8.8.8.8 --server=8.8.4.4 \
   --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 --interface=lo \
   --bind-interfaces --port=53
 log "services-start" "dnsmasq pid: $(pidof dnsmasq)"
+
+log "services-start" "syncing time via NTP"
+ntpd -n -q -p pool.ntp.org
+log "services-start" "current time: $(date)"
 
 log "services-start" "registering watchdog cron job"
 touch /tmp/setup_done
