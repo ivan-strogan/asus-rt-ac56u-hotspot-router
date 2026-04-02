@@ -1,7 +1,7 @@
 #!/bin/sh
 . /jffs/scripts/log.sh
 
-log "services-start" "=== boot sequence started ==="
+log "services-start" "=== boot sequence started (commit: $(cat /jffs/current-commit 2>/dev/null || echo unknown)) ==="
 
 sleep 30
 
