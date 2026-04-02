@@ -2,3 +2,10 @@
 # Runs early on boot - mounts Entware from JFFS into /opt (via /tmp/opt)
 mkdir -p /tmp/opt
 mount --bind /jffs/entware /tmp/opt
+
+# /etc/resolv.conf is a symlink to /rom/etc/resolv.conf (read-only, hardcoded
+# to 127.0.0.1). The firmware dnsmasq on 127.0.0.1 does not forward upstream,
+# so the router itself cannot resolve DNS. Replace the symlink with a real file
+# pointing to 8.8.8.8 so opkg and git can resolve hostnames.
+rm -f /etc/resolv.conf
+echo "nameserver 8.8.8.8" > /etc/resolv.conf

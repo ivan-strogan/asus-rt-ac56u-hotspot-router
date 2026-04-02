@@ -116,7 +116,31 @@ Host 192.168.1.1
     HostkeyAlgorithms +ssh-rsa
 ```
 
-### Step 5 - Verify
+### Step 5 - Install git HTTPS transport (one-time)
+
+The self-update script clones from GitHub over HTTPS. The base Entware `git` package does not include the HTTPS transport helper. Without it, every clone attempt fails with:
+
+```
+git: 'remote-https' is not a git command. See 'git --help'.
+```
+
+**Why DNS doesn't work out of the box for the router itself:**
+
+`/etc/resolv.conf` is a symlink to `/rom/etc/resolv.conf` on the read-only ROM filesystem, hardcoded to `127.0.0.1`. The firmware runs its own dnsmasq with minimal arguments (`dnsmasq --log-async`) and no upstream servers configured — so DNS queries to `127.0.0.1` silently fail. This breaks `opkg`, `git clone`, and any other tool that needs to resolve hostnames on the router itself.
+
+LAN clients are unaffected — they receive `8.8.8.8` directly via DHCP and bypass the router's dnsmasq for DNS entirely.
+
+`init-start` replaces the symlink with a real file pointing to `8.8.8.8` on every boot, fixing this permanently. For this one-time manual install, do the same before running opkg:
+
+```bash
+ssh admin@192.168.1.1
+rm /etc/resolv.conf && echo "nameserver 8.8.8.8" > /etc/resolv.conf
+opkg update && opkg install git-http
+```
+
+`git-http` pulls in `ca-bundle` and `libcurl` automatically. These are stored in `/jffs/entware` and survive reboots — this step only needs to be done once.
+
+### Step 6 - Verify
 
 After `deploy.sh` completes, the log output is printed automatically. You can also check the log manually:
 
@@ -178,7 +202,7 @@ The firmware periodically runs its own scripts that break the NAT setup - removi
 Every minute it checks:
 
 1. **eth1 has an IP** - if not (iPhone hotspot disconnected), runs `udhcpc` to re-acquire a lease
-2. **Bad PREROUTING rules** - removes any firmware-injected DNS or HTTP redirect rules
+2. **Bad PREROUTING rules** - flushes the entire PREROUTING chain (`iptables -t nat -F PREROUTING`). The firmware injects DNS and HTTP redirect rules into PREROUTING that intercept LAN traffic. No PREROUTING rules are needed for this setup so flushing the whole chain is simpler and catches any variant the firmware injects.
 3. **MASQUERADE present** - if missing, re-adds it along with the FORWARD rules (idempotent - won't stack duplicates)
 4. **dnsmasq running** - restarts it if it died
 
@@ -191,10 +215,19 @@ The watchdog won't run until `services-start` has finished its initial setup (us
 After reboot allow **2-3 minutes** before testing:
 
 1. Router boots, firmware connects to iPhone via Repeater mode (automatic)
-2. `firewall-start` runs - opens SSH on the LAN
-3. `services-start` runs - waits for `eth1` to get an IP from the iPhone, then sets up NAT, enables forwarding, starts dnsmasq, registers the watchdog cron job
+2. `init-start` runs - mounts Entware (`/jffs/entware` -> `/opt`) and replaces `/etc/resolv.conf` symlink with a real file pointing to `8.8.8.8` so the router itself can resolve DNS
+3. `firewall-start` runs - opens SSH on the LAN
+4. `services-start` runs:
+   - Waits for `eth1` to get an IP from the iPhone
+   - Syncs the clock via NTP (router boots with clock at firmware build date ~2018 - SSL cert validation fails without this)
+   - Sets up NAT and IP forwarding
+   - Starts dnsmasq for LAN DHCP and DNS
+   - Registers the watchdog cron job
+   - Runs self-update check if 7+ days since last check
 
-If the iPhone hotspot is off when the router boots, `services-start` will wait up to 30 minutes for it to become available.
+If the iPhone hotspot is off when the router boots, `services-start` will wait indefinitely for it to become available.
+
+**Why NTP matters:** The router has no battery-backed RTC. On every boot the clock starts at the firmware build date (May 2018). SSL certificate validation checks the current date against the cert's validity window — without NTP sync, all HTTPS connections fail with `SSL certificate problem: certificate is not yet valid`.
 
 ---
 
@@ -233,15 +266,17 @@ wl -i eth1 scan && sleep 3 && wl -i eth1 scanresults | grep -A3 "YOUR_HOTSPOT_SS
 If internet breaks before the watchdog catches it, run this:
 
 ```bash
-iptables -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to 192.168.1.1:18018 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp --dport 80 -j DNAT --to 192.168.1.1:18017 2>/dev/null
+iptables -t nat -F PREROUTING
+iptables -t nat -D POSTROUTING -o eth1 -j MASQUERADE 2>/dev/null
 iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+iptables -D FORWARD -i br0 -o eth1 -j ACCEPT 2>/dev/null
+iptables -D FORWARD -i eth1 -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null
 iptables -A FORWARD -i br0 -o eth1 -j ACCEPT
 iptables -A FORWARD -i eth1 -o br0 -m state --state RELATED,ESTABLISHED -j ACCEPT
 killall dnsmasq 2>/dev/null
 sleep 2
 dnsmasq --log-async --no-resolv --server=8.8.8.8 --server=8.8.4.4 \
-  --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 \
+  --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 --interface=lo \
   --bind-interfaces --port=53
 ```
 

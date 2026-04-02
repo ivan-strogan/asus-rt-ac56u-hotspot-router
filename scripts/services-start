@@ -21,6 +21,10 @@ done
 
 log "services-start" "iPhone hotspot connected - eth1 IP: $ETH1_IP"
 
+log "services-start" "syncing time via NTP"
+ntpd -d -n -q -p pool.ntp.org
+log "services-start" "current time: $(date)"
+
 log "services-start" "setting br0 to 192.168.1.1"
 ifconfig br0 192.168.1.1 netmask 255.255.255.0 up
 sleep 1
