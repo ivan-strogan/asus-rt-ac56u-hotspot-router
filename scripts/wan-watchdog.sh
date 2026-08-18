@@ -50,7 +50,15 @@ fi
 # our dnsmasq and starts its own `dnsmasq --log-async` with no upstream
 # servers configured, which leaves a process running (pidof would pass) but
 # unable to resolve anything for the LAN.
-if ! ps w | grep '[d]nsmasq' | grep -q -- '--conf-file=/jffs/dnsmasq-dhcp.conf'; then
+#
+# ps output is captured into a variable first rather than piped straight
+# into the confirmatory grep. Piping `ps w | grep ... | grep -q PATTERN`
+# runs all three commands concurrently, so ps can snapshot the second
+# grep's own argv mid-flight - and since that argv literally contains
+# PATTERN, it matches itself and the check always reports healthy. Capturing
+# ps's output first means it has already exited by the time we grep it.
+DNSMASQ_PROC=$(ps w | grep '[d]nsmasq')
+if ! echo "$DNSMASQ_PROC" | grep -q -- '--conf-file=/jffs/dnsmasq-dhcp.conf'; then
     log "watchdog" "dnsmasq missing or not ours - restarting"
     killall dnsmasq 2>/dev/null
     sleep 1
