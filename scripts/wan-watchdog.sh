@@ -60,4 +60,15 @@ if ! ps w | grep '[d]nsmasq' | grep -q -- '--conf-file=/jffs/dnsmasq-dhcp.conf';
     log "watchdog" "dnsmasq restarted with pid: $(pidof dnsmasq)"
 fi
 
+# (e) /etc/resolv.conf reverted to the firmware's read-only symlink.
+# init-start and services-start only set this at boot as a real file; the
+# firmware can replace it with the /rom symlink (127.0.0.1, no upstream)
+# again afterward, breaking DNS for anything running on the router itself
+# (opkg, git, self-update).
+if [ -L /etc/resolv.conf ]; then
+    log "watchdog" "resolv.conf reverted to firmware symlink - fixing"
+    rm -f /etc/resolv.conf
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+fi
+
 rm -f "$LOCK"
