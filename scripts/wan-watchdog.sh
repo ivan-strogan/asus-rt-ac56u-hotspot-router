@@ -45,9 +45,15 @@ if [ -z "$MASQ" ]; then
     iptables -t nat -L POSTROUTING -n -v
 fi
 
-# (d) dnsmasq not running
-if ! pidof dnsmasq > /dev/null; then
-    log "watchdog" "dnsmasq not running - restarting"
+# (d) dnsmasq not running, or running as the firmware's own bare instance.
+# A plain `pidof dnsmasq` check isn't enough - the firmware sometimes kills
+# our dnsmasq and starts its own `dnsmasq --log-async` with no upstream
+# servers configured, which leaves a process running (pidof would pass) but
+# unable to resolve anything for the LAN.
+if ! ps w | grep '[d]nsmasq' | grep -q -- '--conf-file=/jffs/dnsmasq-dhcp.conf'; then
+    log "watchdog" "dnsmasq missing or not ours - restarting"
+    killall dnsmasq 2>/dev/null
+    sleep 1
     dnsmasq --log-async --no-resolv --server=8.8.8.8 --server=8.8.4.4 \
       --conf-file=/jffs/dnsmasq-dhcp.conf --interface=br0 --interface=lo \
       --bind-interfaces --port=53
